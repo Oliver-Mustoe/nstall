@@ -16,12 +16,33 @@ Functions:
 import sys
 import subprocess
 import os
+
+# non-stdlib imports
 import toml
 
 # TODO: Replace later with actual way to select a directory and a file (or at least a directory!)
 DIR_PATH = "/etc/nixos"
 FILE_PATH = f"{DIR_PATH}/configuration.nix"
 
+def print_pretty(input_string, color='red'):
+    """
+    Print the input string with specified color.
+
+    Args:
+        input_string (str): The string to be printed.
+        color (str): The color to be used. Either "red" or "green".
+
+    Returns:
+        None
+    """
+    if color == "red":
+        print("\033[91m" + input_string + "\033[0m")
+    elif color == "green":
+        print("\033[92m" + input_string + "\033[0m")
+    elif color == "orange":
+        print("\033[93m" + input_string + "\033[0m")
+    else:
+        print(input_string)
 
 def edit_package_list(package_name, action):
     """
@@ -62,15 +83,15 @@ def edit_package_list(package_name, action):
                 config["packages"]["nixpkgs"]["pks"].remove(package_name)
                 do_rebuild = True
             elif package_name in config["packages"]["nixpkgs"]["pks"]:
-                print(f"{package_name} is in your package list!")
+                print_pretty(f"{package_name} is in your package list!", 'red')
             elif package_name not in config["packages"]["nixpkgs"]["pks"]:
-                print(f"{package_name} is not in your package list!")
+                print_pretty(f"{package_name} is not in your package list!", 'red')
             else:
-                print("COULD NOT INSTALL PACKAGE FOR UNDEFINED REASON!!!")
+                print_pretty("COULD NOT INSTALL PACKAGE FOR UNDEFINED REASON!!!", 'red')
         with open(f"{DIR_PATH}/configuration.toml", "w", encoding="utf-8") as file:
             toml.dump(config, file)
     except (IOError, toml.TomlDecodeError) as package_op_error:
-        print(f"Error: {package_op_error}")
+        print_pretty(f"Error: {package_op_error}", 'red')
 
     return do_rebuild
 
@@ -78,7 +99,7 @@ def edit_package_list(package_name, action):
 if __name__ == "__main__":
     # Maybe add channel support
     if len(sys.argv) < 3:
-        print("Usage: sudo nstall <add/remove> <package_name>")
+        print_pretty("Usage: sudo nstall <add/remove> <package_name>", 'red')
     else:
         user_action = sys.argv[1].lower()
         target_package_name = sys.argv[2]
@@ -86,18 +107,30 @@ if __name__ == "__main__":
 
         if user_action in ["install", "add"]:
             rebuild = edit_package_list(package_name=target_package_name, action=True)
-            # Run a nixos-rebuild
+            print_pretty(f"Added {target_package_name} to your package list!", 'green')
         elif user_action == "remove":
             rebuild = edit_package_list(package_name=target_package_name, action=False)
+            print_pretty(f"Removed {target_package_name} from your package list!", 'green')
         else:
-            print("nstall: Invalid action. Use 'add' or 'remove'.")
+            print_pretty("nstall: Invalid action. Use 'add' or 'remove'.", 'red')
 
         if rebuild:
-            try:
-                rebuild_output = ["sudo", "nixos-rebuild", "switch"]
-                rebuild_output = subprocess.check_output(
-                    args=rebuild_output, shell=False
-                )
-                print(rebuild_output)
-            except subprocess.CalledProcessError as rebuild_error:
-                print(f"Rebuild Error: {rebuild_error}")
+
+            print_pretty("You should now rebuild your system configuration.", 'orange')
+            print_pretty("Would you like to rebuild now? [y/n]", 'orange')
+            user_input = input().lower()
+
+            if user_input == "y":
+                try:
+                    rebuild_output = ["sudo", "nixos-rebuild", "switch"]
+                    rebuild_output = subprocess.check_output(
+                        args=rebuild_output, shell=False
+                    )
+                    #print(rebuild_output)
+                    print_pretty("Rebuild successful!", 'green')
+                except subprocess.CalledProcessError as rebuild_error:
+                    print_pretty(f"Rebuild Error: {rebuild_error}", 'red')
+            else:
+                print_pretty("Rebuild skipped.", 'orange')
+                print_pretty("Please remember to rebuild your system configuration.", 'orange')
+                print_pretty("You can do this by running 'sudo nixos-rebuild switch'.", 'orange')
