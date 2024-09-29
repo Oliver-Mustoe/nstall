@@ -23,6 +23,8 @@ import toml
 # TODO: Replace later with actual way to select a directory and a file (or at least a directory!)
 DIR_PATH = "/etc/nixos"
 FILE_PATH = f"{DIR_PATH}/configuration.nix"
+DEFAULT_TOML = {"packages": {"nixpkgs": {"pks": []}}}
+CONFIG_FILE_PATH = f"{DIR_PATH}/configuration.toml"
 
 def print_pretty(input_string, color='red'):
     """
@@ -57,17 +59,15 @@ def edit_package_list(package_name, action):
     """
     # TODO: add some error handling here for if a package is not
     # in the list OR doesnt exist in general
-    default_toml = {"packages": {"nixpkgs": {"pks": []}}}
-    toml_file = f"{DIR_PATH}/configuration.toml"
     do_rebuild = False
 
     # Check if TOML exists, if not - create it
-    if not os.path.isfile(toml_file):
-        with open(toml_file, "w", encoding="utf-8") as f:
-            toml.dump(default_toml, f)
+    if not os.path.isfile(CONFIG_FILE_PATH):
+        with open(CONFIG_FILE_PATH, "w", encoding="utf-8") as f:
+            toml.dump(DEFAULT_TOML, f)
     try:
         # Read the toml
-        with open(f"{DIR_PATH}/configuration.toml", "r", encoding="utf-8") as file:
+        with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as file:
             config = toml.load(file)
             # Either add or remove the package name from the list depending on the action
             # Could probably be done with a switch statement or somethign
@@ -88,7 +88,7 @@ def edit_package_list(package_name, action):
                 print_pretty(f"{package_name} is not in your package list!", 'red')
             else:
                 print_pretty("COULD NOT INSTALL PACKAGE FOR UNDEFINED REASON!!!", 'red')
-        with open(f"{DIR_PATH}/configuration.toml", "w", encoding="utf-8") as file:
+        with open(CONFIG_FILE_PATH, "w", encoding="utf-8") as file:
             toml.dump(config, file)
     except (IOError, toml.TomlDecodeError) as package_op_error:
         print_pretty(f"Error: {package_op_error}", 'red')
