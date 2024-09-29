@@ -1,68 +1,78 @@
 #!/usr/bin/env python3
 
 import sys
+import subprocess
+import os
+import toml
 
-file_path = "/etc/nixos/configuration.nix"
+# Replace later with actual way to select a directory and a file (or at least a directory!)
+dir_path = "/etc/nixos"
+file_path = f"{dir_path}/configuration.nix"
 
-def add_package_to_nix_config(package_name):
+
+def edit_package_list(package_name, action):
+    # TODO: add some error handling here for if a package is not in the list OR doesnt exist in general
+    defaultToml = {"packages": {"nixpkgs": {"pks": []}}}
+    tomlFile = f"{dir_path}/configuration.toml"
+    toRebuild = False
+
+    # Check if TOML exists, if not - create it
+    if not os.path.isfile(tomlFile):
+        with open(tomlFile, "w") as f:
+            toml.dump(defaultToml, f)
     try:
-        # Read the file content
-        with open(file_path, "r") as file:
-            lines = file.readlines()
-        
-        # Find the line and insert the package after it
-        for i, line in enumerate(lines):
-            if 'environment.systemPackages = with pkgs; [' in line:
-                lines.insert(i + 1, f"  {package_name} # added by nstall\n")
-                break
-        
-        # Write the modified content back to the file
-        with open(file_path, "w") as file:
-            file.writelines(lines)
-        
-        print(f"Successfully added '{package_name}' to {file_path}")
-    
+        # Read the toml
+        with open(f"{dir_path}/configuration.toml", "r") as file:
+            config = toml.load(file)
+            # Either add or remove the package name from the list depending on the action
+            # Could probably be done with a switch statement or somethign
+            if action is True and package_name not in config['packages']['nixpkgs']['pks']:
+                config['packages']['nixpkgs']['pks'].append(package_name)
+                toRebuild = True
+            elif action is False and package_name in config['packages']['nixpkgs']['pks']:
+                config['packages']['nixpkgs']['pks'].remove(package_name)
+                toRebuild = True
+            elif package_name in config['packages']['nixpkgs']['pks']:
+                print(f"{package_name} is in your package list!")
+            elif package_name not in config['packages']['nixpkgs']['pks']:
+                print(f"{package_name} is not in your package list!")
+            else:
+                print("COULD NOT INSTALL PACKAGE FOR UNDEFINED REASON!!!")
+        with open(f"{dir_path}/configuration.toml", "w") as file:
+            toml.dump(config, file)
     except Exception as e:
         print(f"Error: {e}")
 
-def remove_package_from_nix_config(package_name):
-    in_system_packages_block = False
+    return toRebuild
 
-    try:
-        # Read the file content
-        with open(file_path, "r") as file:
-            lines = file.readlines()
-        
-        # Filter out the specified package between the systemPackages block
-        for i, line in enumerate(lines):
-            if 'environment.systemPackages = with pkgs; [' in line:
-                in_system_packages_block = True  # Start tracking block
-                continue
-            elif '];' in line and in_system_packages_block:
-                in_system_packages_block = False  # End of block, stop tracking
-                break
-            elif in_system_packages_block:
-                if package_name in line:
-                    print(f"Removing '{package_name}' from {file_path}")
-                    lines[i] = ''  # Remove the line containing the package
-        
-        # Write the modified content back to the file
-        with open(file_path, "w") as file:
-            file.writelines(lines)
-        
-    except Exception as e:
-        print(f"Error: {e}")
 
 if __name__ == "__main__":
+    # Maybe add channel support
     if len(sys.argv) < 3:
         print("Usage: sudo nstall <add/remove> <package_name>")
     else:
         action = sys.argv[1].lower()
         package_name = sys.argv[2]
+        rebuild = False
 
         if action == "install" or action == "add":
-            add_package_to_nix_config(package_name)
+            try:
+                rebuild = edit_package_list(
+                    package_name=package_name, action=True)
+            except Exception as e:
+                print(e)
+            # Run a nixos-rebuild
         elif action == "remove":
-            remove_package_from_nix_config(package_name)
+            try:
+                rebuild = edit_package_list(
+                    package_name=package_name, action=False)
+            except Exception as e:
+                print(e)
         else:
             print("nstall: Invalid action. Use 'add' or 'remove'.")
+
+        if rebuild:
+            rebuildOutput = ["sudo", "nixos-rebuild", "switch"]
+            rebuildOutput = subprocess.check_output(
+                args=rebuildOutput, shell=False)
+            print(rebuildOutput)

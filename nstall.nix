@@ -1,18 +1,18 @@
-{ pkgs ? import <nixpkgs> {} }:
-
-pkgs.python3Packages.buildPythonApplication rec {
-    pname = "nstall";
-    version = "0.2.0";
-    format = "other";
-
-    # propagatedBuildInputs = [
-    #     # List of dependencies
-    #     pkgs.python3Packages.flask
-    # ];
-
-    # Add further lines to `installPhase` to install any extra data files if needed.
-    dontUnpack = true;
-    installPhase = ''
-        install -Dm755 ${./nstall.py} $out/bin/${pname}
-    '';
+{ pkgs, ... }:
+let
+  toml = pkgs.lib.importTOML ./configuration.toml;
+  getPackages =
+    pkgsList:
+    pkgs.lib.flatten (
+      map (
+        channel:
+        map (
+          p: (import (builtins.findFile builtins.nixPath "${channel}") { config.allowUnfree = true; })."${p}"
+        ) toml.packages.${channel}.pks
+      ) pkgsList
+    );
+  packages = getPackages (builtins.attrNames toml.packages);
+in
+{
+  environment.systemPackages = packages;
 }
