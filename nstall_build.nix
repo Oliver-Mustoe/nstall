@@ -5,10 +5,10 @@ pkgs.python3Packages.buildPythonApplication rec {
     version = "0.2.0";
     format = "other";
 
-    # propagatedBuildInputs = [
-    #     # List of dependencies
-    #     pkgs.python3Packages.flask
-    # ];
+     propagatedBuildInputs = [
+         # List of dependencies
+         pkgs.python3Packages.toml
+     ];
 
     # Add further lines to `installPhase` to install any extra data files if needed.
     dontUnpack = true;
