@@ -83,15 +83,15 @@ def edit_package_list(package_name, action):
                 config["packages"]["nixpkgs"]["pks"].remove(package_name)
                 do_rebuild = True
             elif package_name in config["packages"]["nixpkgs"]["pks"]:
-                print_pretty(f"{package_name} is in your package list!", 'red')
+                print_pretty(f"LOG: {package_name} is in your package list!", 'orange')
             elif package_name not in config["packages"]["nixpkgs"]["pks"]:
-                print_pretty(f"{package_name} is not in your package list!", 'red')
+                print_pretty(f"LOG: {{package_name} is not in your package list!", 'orange')
             else:
-                print_pretty("COULD NOT INSTALL PACKAGE FOR UNDEFINED REASON!!!", 'red')
+                print_pretty("ERROR: COULD NOT INSTALL PACKAGE FOR UNDEFINED REASON!!!", 'red')
         with open(CONFIG_FILE_PATH, "w", encoding="utf-8") as file:
             toml.dump(config, file)
     except (IOError, toml.TomlDecodeError) as package_op_error:
-        print_pretty(f"Error: {package_op_error}", 'red')
+        print_pretty(f"ERROR: {package_op_error}", 'red')
 
     return do_rebuild
 
@@ -107,30 +107,30 @@ if __name__ == "__main__":
 
         if user_action in ["install", "add"]:
             rebuild = edit_package_list(package_name=target_package_name, action=True)
-            print_pretty(f"Added {target_package_name} to your package list!", 'green')
+            print_pretty(f"SUCCESS: Added {target_package_name} to your package list!", 'green')
         elif user_action == "remove":
             rebuild = edit_package_list(package_name=target_package_name, action=False)
             print_pretty(f"Removed {target_package_name} from your package list!", 'green')
         else:
-            print_pretty("nstall: Invalid action. Use 'add' or 'remove'.", 'red')
+            print_pretty("ERROR: Invalid action. Use 'add' or 'remove'.", 'red')
 
         if rebuild:
 
-            print_pretty("You should now rebuild your system configuration.", 'orange')
-            print_pretty("Would you like to rebuild now? [y/n]", 'orange')
+            print_pretty("LOG: Your system will need to be rebuilt to apply this configuration.", 'orange')
+            print_pretty("LOG: Would you like to rebuild now? [y/n]", 'orange')
             user_input = input().lower()
 
             if user_input == "y":
                 try:
-                    rebuild_output = ["sudo", "nixos-rebuild", "switch"]
+                    # Sudo may need to be placed below but I would think that program is already sudo > dont need sudo here
+                    rebuild_output = ["nixos-rebuild", "switch"]
                     rebuild_output = subprocess.check_output(
                         args=rebuild_output, shell=False
                     )
                     #print(rebuild_output)
-                    print_pretty("Rebuild successful!", 'green')
+                    print_pretty("SUCCESS: Rebuild successful!", 'green')
                 except subprocess.CalledProcessError as rebuild_error:
-                    print_pretty(f"Rebuild Error: {rebuild_error}", 'red')
+                    print_pretty(f"ERROR: {rebuild_error}", 'red')
             else:
-                print_pretty("Rebuild skipped.", 'orange')
-                print_pretty("Please remember to rebuild your system configuration.", 'orange')
-                print_pretty("You can do this by running 'sudo nixos-rebuild switch'.", 'orange')
+                print_pretty("LOG: Rebuild skipped.", 'orange')
+                print_pretty("LOG: You can manually apply your configuration with the command 'sudo nixos-rebuild switch'.", 'orange')
