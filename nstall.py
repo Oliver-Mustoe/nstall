@@ -13,9 +13,14 @@ Functions:
 
 """
 
+# Probably need to clean these up
 import sys
 import subprocess
 import os
+import re
+import json
+import sqlite3
+from contextlib import closing
 
 # non-stdlib imports
 import toml
@@ -85,7 +90,7 @@ def edit_package_list(package_name, action):
             elif package_name in config["packages"]["nixpkgs"]["pks"]:
                 print_pretty(f"LOG: {package_name} is in your package list!", 'orange')
             elif package_name not in config["packages"]["nixpkgs"]["pks"]:
-                print_pretty(f"LOG: {{package_name} is not in your package list!", 'orange')
+                print_pretty(f"LOG: {package_name} is not in your package list!", 'orange')
             else:
                 print_pretty("ERROR: COULD NOT INSTALL PACKAGE FOR UNDEFINED REASON!!!", 'red')
         with open(CONFIG_FILE_PATH, "w", encoding="utf-8") as file:
@@ -95,9 +100,37 @@ def edit_package_list(package_name, action):
 
     return do_rebuild
 
+def search_package_list(package_name, system_hash):
+    # TODO: Be able to change channels
+    # POSSIBLE TODO: Have building cache be its own function? Not really search when you would want to do it besides a search
+    package_list_cache = f"{DIR_PATH}/{system_hash}.db"
+
+    # Create db and a cursor connection
+    with closing(sqlite3.connect(package_list_cache)) as connection:
+      with closing(connection.cursor()) as cursor:
+        if not os.path.isfile(package_list_cache):
+            # Create packages table
+            cursor.execute("CREATE TABLE packages (package TEXT, description TEXT, version TEXT, unfree BINARY)")
+
+            # Build a JSON cache of all of the pkgs in your nixpkgs cache
+            git_archive = f"https://github.com/NixOS/nixpkgs/archive/{system_hash}.tar.gz"
+            build_cache = ["nix-env", "-f", f'${git_archive}', "-qaP", "--json", "--meta", "'*'"]
+            build_output = subprocess.check_output(
+                args=build_cache, shell=False
+            ).decode("utf-8")
+
+            json_cache = json.loads(build_output)
+
+            # Load values into the db
+            for key, value in json_cache.items():
+                package = key
+                description = value.meta.description
+                version = value.version
+                unfree = value.meta.unfree
+                cursor.execute("INSERT into packages VALUES (?,?,?,?)", (package, description, version, unfree))
+
 
 if __name__ == "__main__":
-    # Maybe add channel support
     if len(sys.argv) < 3:
         print_pretty("Usage: sudo nstall <add/remove> <package_name>", 'red')
     else:
@@ -111,11 +144,18 @@ if __name__ == "__main__":
         elif user_action == "remove":
             rebuild = edit_package_list(package_name=target_package_name, action=False)
             print_pretty(f"Removed {target_package_name} from your package list!", 'green')
+        elif user_action == "search":
+            print_pretty(f"Results for {target_package_name}", 'green')
+            # Getting hash here for future usage of functions for other projects
+            system_version = subprocess.check_output(args=["nixos-version"], shell=False).decode("utf-8")
+            system_hash = re.search(r".*\.(.*)\s\(", system_version).group(1)
+            print(system_version,system_hash)
+
+            search_package_list(package_name=target_package_name, system_hash=system_hash)
         else:
             print_pretty("ERROR: Invalid action. Use 'add' or 'remove'.", 'red')
 
         if rebuild:
-
             print_pretty("LOG: Your system will need to be rebuilt to apply this configuration.", 'orange')
             print_pretty("LOG: Would you like to rebuild now? [y/n]", 'orange')
             user_input = input().lower()
