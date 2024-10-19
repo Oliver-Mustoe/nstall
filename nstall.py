@@ -105,16 +105,20 @@ def search_package_list(package_name, system_hash):
     # POSSIBLE TODO: Have building cache be its own function? Not really search when you would want to do it besides a search
     package_list_cache = f"{DIR_PATH}/{system_hash}.db"
 
+    if not os.path.isfile(package_list_cache):
+        to_build_cache = True
+    else:
+        to_build_cache = False
     # Create db and a cursor connection
     with closing(sqlite3.connect(package_list_cache)) as connection:
       with closing(connection.cursor()) as cursor:
-        if not os.path.isfile(package_list_cache):
+           if to_build_cache:
             # Create packages table
-            cursor.execute("CREATE TABLE packages (package TEXT, description TEXT, version TEXT, unfree BINARY)")
+            cursor.execute("CREATE TABLE packages (package TEXT, description TEXT, version TEXT, unfree TEXT)")
 
             # Build a JSON cache of all of the pkgs in your nixpkgs cache
             git_archive = f"https://github.com/NixOS/nixpkgs/archive/{system_hash}.tar.gz"
-            build_cache = ["nix-env", "-f", f'${git_archive}', "-qaP", "--json", "--meta", "'*'"]
+            build_cache = ["nix-env", "-f", git_archive, "-qaP", "--json", "--meta", "*"]
             build_output = subprocess.check_output(
                 args=build_cache, shell=False
             ).decode("utf-8")
@@ -123,11 +127,30 @@ def search_package_list(package_name, system_hash):
 
             # Load values into the db
             for key, value in json_cache.items():
+                print(f'Creating entry for: {key}', flush=True)
+                # print(value['meta'].keys())
                 package = key
-                description = value.meta.description
-                version = value.version
-                unfree = value.meta.unfree
+
+                # For some godforsaken (misspell) reason I am getting on some that description or unfree dont exist when I can see them but whatever 
+                try:
+                    description = value['meta']['description']
+                except:
+                    descrption = "Not provided"
+                try:
+                    version = value['version']
+                except:
+                    version = "Not provided"
+                try:
+                    unfree = value['meta']['unfree']
+                except:
+                    unfree = "Not provided"
                 cursor.execute("INSERT into packages VALUES (?,?,?,?)", (package, description, version, unfree))
+
+            print("All entries created, committing to DB...")
+            connection.commit()
+            print("")
+           else:
+               print("cache already exists, executing search")
 
 
 if __name__ == "__main__":
