@@ -181,7 +181,7 @@ def search_package_list(package_name, system_hash, to_glob):
 
             # Display the results of the searches to the user
             print("\n'Package Name' is the name you would use to install the package!")
-            print_pretty(f"Results for {target_package_name}", 'green')
+            print_pretty(f"Results for '{target_package_name}'", 'green')
             print("------------------------------------")
             for row in matching_rows:
                 # DONT DO DATA CORRECTION HERE - MAKE IT GOOD IN THE DB
