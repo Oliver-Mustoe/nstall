@@ -120,6 +120,7 @@ def search_package_list(package_name, system_hash, to_glob):
     # POSSIBLE TODO: Have building cache be its own function? Not really search when you would want to do it besides a search
     package_list_cache = f"{DIR_PATH}/{system_hash}.db"
 
+    # Test to see if the DB exists, may eventually do 1 db, table in db is a channel
     if not os.path.isfile(package_list_cache):
         to_build_cache = True
     else:
@@ -149,18 +150,21 @@ def search_package_list(package_name, system_hash, to_glob):
                     package = key
 
                     # For some godforsaken (misspell) reason I am getting on some that description or unfree dont exist when I can see them but whatever
-                    try:
+
+                    if 'description' in value['meta']:
                         description = value['meta']['description']
-                    except:
-                        descrption = "Not provided"
-                    try:
+                    else:
+                        description = 'n/a'
+
+                    if value['version'] != "" and 'version' in value:
                         version = value['version']
-                    except:
-                        version = "Not provided"
-                    try:
+                    else:
+                        version = "n/a"
+
+                    if 'unfree' in value['meta']:
                         unfree = value['meta']['unfree']
-                    except:
-                        unfree = "Not provided"
+                    else:
+                        unfree = "n/a"
                     cursor.execute("INSERT into packages VALUES (?,?,?,?)",
                                    (package, description, version, unfree))
 
@@ -169,15 +173,18 @@ def search_package_list(package_name, system_hash, to_glob):
                 print("")
 
             time_start = time.time()
+            # Search for the users package that they want, also get the count
             matching_rows = cursor.execute(
                 package_search_query, (package_name,)).fetchall()
             result_amount = cursor.execute(
                 count_package_search_query, (package_name,)).fetchall()
 
+            # Display the results of the searches to the user
             print("\n'Package Name' is the name you would use to install the package!")
             print_pretty(f"Results for {target_package_name}", 'green')
             print("------------------------------------")
             for row in matching_rows:
+                # DONT DO DATA CORRECTION HERE - MAKE IT GOOD IN THE DB
                 package = row[0]
                 description = row[1]
                 version = row[2]
@@ -199,7 +206,7 @@ def search_package_list(package_name, system_hash, to_glob):
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print_pretty(
-            "Usage: sudo nstall <add/remove/search/searchglob> <package_name>", 'red')
+            "Usage: sudo nstall <add/remove/search/match> <package_name>", 'red')
     else:
         user_action = sys.argv[1].lower()
         target_package_name = sys.argv[2]
@@ -215,7 +222,7 @@ if __name__ == "__main__":
                 package_name=target_package_name, action=False)
             print_pretty(
                 f"Removed {target_package_name} from your package list!", 'green')
-        elif user_action == "search" or user_action == "searchglob":
+        elif user_action == "search" or user_action == "match":
             # Getting hash here for future usage of functions for other projects
             system_version = subprocess.check_output(
                 args=["nixos-version"], shell=False).decode("utf-8")
@@ -224,7 +231,7 @@ if __name__ == "__main__":
             if user_action == "search":
                 search_package_list(
                     package_name=target_package_name, system_hash=system_hash, to_glob=False)
-            elif user_action == "searchglob":
+            elif user_action == "match":
                 search_package_list(
                     package_name=target_package_name, system_hash=system_hash, to_glob=True)
         else:
