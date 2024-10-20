@@ -33,7 +33,7 @@ DEFAULT_TOML = {"packages": {"nixpkgs": {"pks": []}}}
 CONFIG_FILE_PATH = f"{DIR_PATH}/configuration.toml"
 
 
-def print_pretty(input_string, color='red'):
+def print_pretty(input_string, color="red"):
     """
     Print the input string with specified color.
 
@@ -92,17 +92,19 @@ def edit_package_list(package_name, action):
                 do_rebuild = True
             elif package_name in config["packages"]["nixpkgs"]["pks"]:
                 print_pretty(
-                    f"LOG: {package_name} is in your package list!", 'orange')
+                    f"LOG: {package_name} is in your package list!", "orange")
             elif package_name not in config["packages"]["nixpkgs"]["pks"]:
                 print_pretty(
-                    f"LOG: {package_name} is not in your package list!", 'orange')
+                    f"LOG: {package_name} is not in your package list!", "orange"
+                )
             else:
                 print_pretty(
-                    "ERROR: COULD NOT INSTALL PACKAGE FOR UNDEFINED REASON!!!", 'red')
+                    "ERROR: COULD NOT INSTALL PACKAGE FOR UNDEFINED REASON!!!", "red"
+                )
         with open(CONFIG_FILE_PATH, "w", encoding="utf-8") as file:
             toml.dump(config, file)
     except (IOError, toml.TomlDecodeError) as package_op_error:
-        print_pretty(f"ERROR: {package_op_error}", 'red')
+        print_pretty(f"ERROR: {package_op_error}", "red")
 
     return do_rebuild
 
@@ -111,11 +113,19 @@ def search_package_list(package_name, system_hash, to_glob):
     # Create a package list SQL search based on whether or not they want globbing
     # DO NOT FORGET THE ',' AT THE END DEAR GOD DO NOT FORGET IT!!!
     if to_glob:
-        package_search_query = "SELECT * from packages WHERE package GLOB CONCAT (LOWER(?))"
-        count_package_search_query = "SELECT COUNT(*) from packages WHERE package GLOB CONCAT (LOWER(?))"
+        package_search_query = (
+            "SELECT * from packages WHERE package GLOB CONCAT (LOWER(?))"
+        )
+        count_package_search_query = (
+            "SELECT COUNT(*) from packages WHERE package GLOB CONCAT (LOWER(?))"
+        )
     else:
-        package_search_query = "SELECT * from packages WHERE package LIKE CONCAT (?,'%')"
-        count_package_search_query = "SELECT COUNT(*) from packages WHERE package LIKE CONCAT (?,'%')"
+        package_search_query = (
+            "SELECT * from packages WHERE package LIKE CONCAT (?,'%')"
+        )
+        count_package_search_query = (
+            "SELECT COUNT(*) from packages WHERE package LIKE CONCAT (?,'%')"
+        )
     # TODO: Be able to change channels
     # POSSIBLE TODO: Have building cache be its own function? Not really search when you would want to do it besides a search
     package_list_cache = f"{DIR_PATH}/{system_hash}.db"
@@ -131,12 +141,23 @@ def search_package_list(package_name, system_hash, to_glob):
             if to_build_cache:
                 # Create packages table
                 cursor.execute(
-                    "CREATE TABLE packages (package TEXT, description TEXT, version TEXT, unfree TEXT)")
+                    "CREATE TABLE packages (package TEXT, description TEXT, version TEXT, unfree TEXT)"
+                )
 
                 # Build a JSON cache of all of the pkgs in your nixpkgs cache
-                git_archive = f"https://github.com/NixOS/nixpkgs/archive/{system_hash}.tar.gz"
-                build_cache = ["nix-env", "-f", git_archive,
-                               "-qaP", "--json", "--meta", "--quiet", "*"]
+                git_archive = (
+                    f"https://github.com/NixOS/nixpkgs/archive/{system_hash}.tar.gz"
+                )
+                build_cache = [
+                    "nix-env",
+                    "-f",
+                    git_archive,
+                    "-qaP",
+                    "--json",
+                    "--meta",
+                    "--quiet",
+                    "*",
+                ]
                 build_output = subprocess.check_output(
                     args=build_cache, shell=False
                 ).decode("utf-8")
@@ -145,28 +166,30 @@ def search_package_list(package_name, system_hash, to_glob):
 
                 # Load values into the db
                 for key, value in json_cache.items():
-                    print(f'Creating entry for: {key}', flush=True)
+                    print(f"Creating entry for: {key}", flush=True)
                     # print(value['meta'].keys())
                     package = key
 
                     # For some godforsaken (misspell) reason I am getting on some that description or unfree dont exist when I can see them but whatever
 
-                    if 'description' in value['meta']:
-                        description = value['meta']['description']
+                    if "description" in value["meta"]:
+                        description = value["meta"]["description"]
                     else:
-                        description = 'n/a'
+                        description = "n/a"
 
-                    if value['version'] != "" and 'version' in value:
-                        version = value['version']
+                    if value["version"] != "" and "version" in value:
+                        version = value["version"]
                     else:
                         version = "n/a"
 
-                    if 'unfree' in value['meta']:
-                        unfree = value['meta']['unfree']
+                    if "unfree" in value["meta"]:
+                        unfree = value["meta"]["unfree"]
                     else:
                         unfree = "n/a"
-                    cursor.execute("INSERT into packages VALUES (?,?,?,?)",
-                                   (package, description, version, unfree))
+                    cursor.execute(
+                        "INSERT into packages VALUES (?,?,?,?)",
+                        (package, description, version, unfree),
+                    )
 
                 print("All entries created, committing to DB...")
                 connection.commit()
@@ -175,13 +198,15 @@ def search_package_list(package_name, system_hash, to_glob):
             time_start = time.time()
             # Search for the users package that they want, also get the count
             matching_rows = cursor.execute(
-                package_search_query, (package_name,)).fetchall()
+                package_search_query, (package_name,)
+            ).fetchall()
             result_amount = cursor.execute(
-                count_package_search_query, (package_name,)).fetchall()
+                count_package_search_query, (package_name,)
+            ).fetchall()
 
             # Display the results of the searches to the user
             print("\n'Package Name' is the name you would use to install the package!")
-            print_pretty(f"Results for '{target_package_name}'", 'green')
+            print_pretty(f"Results for '{target_package_name}'", "green")
             print("------------------------------------")
             for row in matching_rows:
                 # DONT DO DATA CORRECTION HERE - MAKE IT GOOD IN THE DB
@@ -190,11 +215,14 @@ def search_package_list(package_name, system_hash, to_glob):
                 version = row[2]
                 unfree = row[3]
                 print(
-                    f"Package Name: {package}\nDescription: {description}\nVersion: {version}\n", end='')
+                    f"Package Name: {package}\nDescription: {description}\nVersion: {version}\n",
+                    end="",
+                )
 
                 if unfree == "1":
                     print(
-                        "WARNING: This package requires unfree to be enabled for the downloading channel!")
+                        "WARNING: This package requires unfree to be enabled for the downloading channel!"
+                    )
                     print("------------------------------------")
                 else:
                     print("------------------------------------")
@@ -206,7 +234,8 @@ def search_package_list(package_name, system_hash, to_glob):
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print_pretty(
-            "Usage: sudo nstall <add/remove/search/match> <package_name>", 'red')
+            "Usage: sudo nstall <add/remove/search/match> <package_name>", "red"
+        )
     else:
         user_action = sys.argv[1].lower()
         target_package_name = sys.argv[2]
@@ -216,32 +245,43 @@ if __name__ == "__main__":
             rebuild = edit_package_list(
                 package_name=target_package_name, action=True)
             print_pretty(
-                f"SUCCESS: Added {target_package_name} to your package list!", 'green')
+                f"SUCCESS: Added {target_package_name} to your package list!", "green"
+            )
         elif user_action == "remove":
             rebuild = edit_package_list(
                 package_name=target_package_name, action=False)
             print_pretty(
-                f"Removed {target_package_name} from your package list!", 'green')
+                f"Removed {target_package_name} from your package list!", "green"
+            )
         elif user_action == "search" or user_action == "match":
             # Getting hash here for future usage of functions for other projects
             system_version = subprocess.check_output(
-                args=["nixos-version"], shell=False).decode("utf-8")
+                args=["nixos-version"], shell=False
+            ).decode("utf-8")
             system_hash = re.search(r".*\.(.*)\s\(", system_version).group(1)
 
             if user_action == "search":
                 search_package_list(
-                    package_name=target_package_name, system_hash=system_hash, to_glob=False)
+                    package_name=target_package_name,
+                    system_hash=system_hash,
+                    to_glob=False,
+                )
             elif user_action == "match":
                 search_package_list(
-                    package_name=target_package_name, system_hash=system_hash, to_glob=True)
+                    package_name=target_package_name,
+                    system_hash=system_hash,
+                    to_glob=True,
+                )
         else:
             print_pretty(
-                "ERROR: Invalid action. Use 'add' or 'remove'.", 'red')
+                "ERROR: Invalid action. Use 'add' or 'remove'.", "red")
 
         if rebuild:
             print_pretty(
-                "LOG: Your system will need to be rebuilt to apply this configuration.", 'orange')
-            print_pretty("LOG: Would you like to rebuild now? [y/n]", 'orange')
+                "LOG: Your system will need to be rebuilt to apply this configuration.",
+                "orange",
+            )
+            print_pretty("LOG: Would you like to rebuild now? [y/n]", "orange")
             user_input = input().lower()
 
             if user_input == "y":
@@ -252,10 +292,12 @@ if __name__ == "__main__":
                         args=rebuild_output, shell=False
                     )
                     # print(rebuild_output)
-                    print_pretty("SUCCESS: Rebuild successful!", 'green')
+                    print_pretty("SUCCESS: Rebuild successful!", "green")
                 except subprocess.CalledProcessError as rebuild_error:
-                    print_pretty(f"ERROR: {rebuild_error}", 'red')
+                    print_pretty(f"ERROR: {rebuild_error}", "red")
             else:
-                print_pretty("LOG: Rebuild skipped.", 'orange')
+                print_pretty("LOG: Rebuild skipped.", "orange")
                 print_pretty(
-                    "LOG: You can manually apply your configuration with the command 'sudo nixos-rebuild switch'.", 'orange')
+                    "LOG: You can manually apply your configuration with the command 'sudo nixos-rebuild switch'.",
+                    "orange",
+                )
