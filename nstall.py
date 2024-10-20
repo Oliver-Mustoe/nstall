@@ -21,6 +21,7 @@ import re
 import json
 import sqlite3
 from contextlib import closing
+import time
 
 # non-stdlib imports
 import toml
@@ -30,6 +31,7 @@ DIR_PATH = "/etc/nixos"
 FILE_PATH = f"{DIR_PATH}/configuration.nix"
 DEFAULT_TOML = {"packages": {"nixpkgs": {"pks": []}}}
 CONFIG_FILE_PATH = f"{DIR_PATH}/configuration.toml"
+
 
 def print_pretty(input_string, color='red'):
     """
@@ -50,6 +52,7 @@ def print_pretty(input_string, color='red'):
         print("\033[93m" + input_string + "\033[0m")
     else:
         print(input_string)
+
 
 def edit_package_list(package_name, action):
     """
@@ -88,11 +91,14 @@ def edit_package_list(package_name, action):
                 config["packages"]["nixpkgs"]["pks"].remove(package_name)
                 do_rebuild = True
             elif package_name in config["packages"]["nixpkgs"]["pks"]:
-                print_pretty(f"LOG: {package_name} is in your package list!", 'orange')
+                print_pretty(
+                    f"LOG: {package_name} is in your package list!", 'orange')
             elif package_name not in config["packages"]["nixpkgs"]["pks"]:
-                print_pretty(f"LOG: {package_name} is not in your package list!", 'orange')
+                print_pretty(
+                    f"LOG: {package_name} is not in your package list!", 'orange')
             else:
-                print_pretty("ERROR: COULD NOT INSTALL PACKAGE FOR UNDEFINED REASON!!!", 'red')
+                print_pretty(
+                    "ERROR: COULD NOT INSTALL PACKAGE FOR UNDEFINED REASON!!!", 'red')
         with open(CONFIG_FILE_PATH, "w", encoding="utf-8") as file:
             toml.dump(config, file)
     except (IOError, toml.TomlDecodeError) as package_op_error:
@@ -100,7 +106,16 @@ def edit_package_list(package_name, action):
 
     return do_rebuild
 
-def search_package_list(package_name, system_hash):
+
+def search_package_list(package_name, system_hash, to_glob):
+    # Create a package list SQL search based on whether or not they want globbing
+    # DO NOT FORGET THE ',' AT THE END DEAR GOD DO NOT FORGET IT!!!
+    if to_glob:
+        package_search_query = "SELECT * from packages WHERE package GLOB CONCAT (LOWER(?))"
+        count_package_search_query = "SELECT COUNT(*) from packages WHERE package GLOB CONCAT (LOWER(?))"
+    else:
+        package_search_query = "SELECT * from packages WHERE package LIKE CONCAT (?,'%')"
+        count_package_search_query = "SELECT COUNT(*) from packages WHERE package LIKE CONCAT (?,'%')"
     # TODO: Be able to change channels
     # POSSIBLE TODO: Have building cache be its own function? Not really search when you would want to do it besides a search
     package_list_cache = f"{DIR_PATH}/{system_hash}.db"
@@ -111,75 +126,114 @@ def search_package_list(package_name, system_hash):
         to_build_cache = False
     # Create db and a cursor connection
     with closing(sqlite3.connect(package_list_cache)) as connection:
-      with closing(connection.cursor()) as cursor:
-           if to_build_cache:
-            # Create packages table
-            cursor.execute("CREATE TABLE packages (package TEXT, description TEXT, version TEXT, unfree TEXT)")
+        with closing(connection.cursor()) as cursor:
+            if to_build_cache:
+                # Create packages table
+                cursor.execute(
+                    "CREATE TABLE packages (package TEXT, description TEXT, version TEXT, unfree TEXT)")
 
-            # Build a JSON cache of all of the pkgs in your nixpkgs cache
-            git_archive = f"https://github.com/NixOS/nixpkgs/archive/{system_hash}.tar.gz"
-            build_cache = ["nix-env", "-f", git_archive, "-qaP", "--json", "--meta", "*"]
-            build_output = subprocess.check_output(
-                args=build_cache, shell=False
-            ).decode("utf-8")
+                # Build a JSON cache of all of the pkgs in your nixpkgs cache
+                git_archive = f"https://github.com/NixOS/nixpkgs/archive/{system_hash}.tar.gz"
+                build_cache = ["nix-env", "-f", git_archive,
+                               "-qaP", "--json", "--meta", "--quiet", "*"]
+                build_output = subprocess.check_output(
+                    args=build_cache, shell=False
+                ).decode("utf-8")
 
-            json_cache = json.loads(build_output)
+                json_cache = json.loads(build_output)
 
-            # Load values into the db
-            for key, value in json_cache.items():
-                print(f'Creating entry for: {key}', flush=True)
-                # print(value['meta'].keys())
-                package = key
+                # Load values into the db
+                for key, value in json_cache.items():
+                    print(f'Creating entry for: {key}', flush=True)
+                    # print(value['meta'].keys())
+                    package = key
 
-                # For some godforsaken (misspell) reason I am getting on some that description or unfree dont exist when I can see them but whatever 
-                try:
-                    description = value['meta']['description']
-                except:
-                    descrption = "Not provided"
-                try:
-                    version = value['version']
-                except:
-                    version = "Not provided"
-                try:
-                    unfree = value['meta']['unfree']
-                except:
-                    unfree = "Not provided"
-                cursor.execute("INSERT into packages VALUES (?,?,?,?)", (package, description, version, unfree))
+                    # For some godforsaken (misspell) reason I am getting on some that description or unfree dont exist when I can see them but whatever
+                    try:
+                        description = value['meta']['description']
+                    except:
+                        descrption = "Not provided"
+                    try:
+                        version = value['version']
+                    except:
+                        version = "Not provided"
+                    try:
+                        unfree = value['meta']['unfree']
+                    except:
+                        unfree = "Not provided"
+                    cursor.execute("INSERT into packages VALUES (?,?,?,?)",
+                                   (package, description, version, unfree))
 
-            print("All entries created, committing to DB...")
-            connection.commit()
-            print("")
-           else:
-               print("cache already exists, executing search")
+                print("All entries created, committing to DB...")
+                connection.commit()
+                print("")
+
+            time_start = time.time()
+            matching_rows = cursor.execute(
+                package_search_query, (package_name,)).fetchall()
+            result_amount = cursor.execute(
+                count_package_search_query, (package_name,)).fetchall()
+
+            print("\n'Package Name' is the name you would use to install the package!")
+            print_pretty(f"Results for {target_package_name}", 'green')
+            print("------------------------------------")
+            for row in matching_rows:
+                package = row[0]
+                description = row[1]
+                version = row[2]
+                unfree = row[3]
+                print(
+                    f"Package Name: {package}\nDescription: {description}\nVersion: {version}\n", end='')
+
+                if unfree == "1":
+                    print(
+                        "WARNING: This package requires unfree to be enabled for the downloading channel!")
+                    print("------------------------------------")
+                else:
+                    print("------------------------------------")
+            time_end = time.time()
+            print(
+                f"{result_amount[0][0]} packages displayed in {time_end-time_start}!")
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print_pretty("Usage: sudo nstall <add/remove> <package_name>", 'red')
+        print_pretty(
+            "Usage: sudo nstall <add/remove/search/searchglob> <package_name>", 'red')
     else:
         user_action = sys.argv[1].lower()
         target_package_name = sys.argv[2]
         rebuild = False
 
         if user_action in ["install", "add"]:
-            rebuild = edit_package_list(package_name=target_package_name, action=True)
-            print_pretty(f"SUCCESS: Added {target_package_name} to your package list!", 'green')
+            rebuild = edit_package_list(
+                package_name=target_package_name, action=True)
+            print_pretty(
+                f"SUCCESS: Added {target_package_name} to your package list!", 'green')
         elif user_action == "remove":
-            rebuild = edit_package_list(package_name=target_package_name, action=False)
-            print_pretty(f"Removed {target_package_name} from your package list!", 'green')
-        elif user_action == "search":
-            print_pretty(f"Results for {target_package_name}", 'green')
+            rebuild = edit_package_list(
+                package_name=target_package_name, action=False)
+            print_pretty(
+                f"Removed {target_package_name} from your package list!", 'green')
+        elif user_action == "search" or user_action == "searchglob":
             # Getting hash here for future usage of functions for other projects
-            system_version = subprocess.check_output(args=["nixos-version"], shell=False).decode("utf-8")
+            system_version = subprocess.check_output(
+                args=["nixos-version"], shell=False).decode("utf-8")
             system_hash = re.search(r".*\.(.*)\s\(", system_version).group(1)
-            print(system_version,system_hash)
 
-            search_package_list(package_name=target_package_name, system_hash=system_hash)
+            if user_action == "search":
+                search_package_list(
+                    package_name=target_package_name, system_hash=system_hash, to_glob=False)
+            elif user_action == "searchglob":
+                search_package_list(
+                    package_name=target_package_name, system_hash=system_hash, to_glob=True)
         else:
-            print_pretty("ERROR: Invalid action. Use 'add' or 'remove'.", 'red')
+            print_pretty(
+                "ERROR: Invalid action. Use 'add' or 'remove'.", 'red')
 
         if rebuild:
-            print_pretty("LOG: Your system will need to be rebuilt to apply this configuration.", 'orange')
+            print_pretty(
+                "LOG: Your system will need to be rebuilt to apply this configuration.", 'orange')
             print_pretty("LOG: Would you like to rebuild now? [y/n]", 'orange')
             user_input = input().lower()
 
@@ -190,10 +244,11 @@ if __name__ == "__main__":
                     rebuild_output = subprocess.check_output(
                         args=rebuild_output, shell=False
                     )
-                    #print(rebuild_output)
+                    # print(rebuild_output)
                     print_pretty("SUCCESS: Rebuild successful!", 'green')
                 except subprocess.CalledProcessError as rebuild_error:
                     print_pretty(f"ERROR: {rebuild_error}", 'red')
             else:
                 print_pretty("LOG: Rebuild skipped.", 'orange')
-                print_pretty("LOG: You can manually apply your configuration with the command 'sudo nixos-rebuild switch'.", 'orange')
+                print_pretty(
+                    "LOG: You can manually apply your configuration with the command 'sudo nixos-rebuild switch'.", 'orange')
