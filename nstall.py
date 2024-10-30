@@ -33,7 +33,7 @@ DEFAULT_TOML = {"packages": {"nixpkgs": {"pks": []}}}
 CONFIG_FILE_PATH = f"{DIR_PATH}/configuration.toml"
 
 
-def print_pretty(input_string, color="red"):
+def print_pretty(input_string, color="red", newl=True):
     """
     Print the input string with specified color.
 
@@ -44,12 +44,15 @@ def print_pretty(input_string, color="red"):
     Returns:
         None
     """
+
+    end = "\n" if newl else ""
+
     if color == "red":
-        print("\033[91m" + input_string + "\033[0m")
+        print("\033[91m" + input_string + "\033[0m", end=end)
     elif color == "green":
-        print("\033[92m" + input_string + "\033[0m")
+        print("\033[92m" + input_string + "\033[0m", end=end)
     elif color == "orange":
-        print("\033[93m" + input_string + "\033[0m")
+        print("\033[93m" + input_string + "\033[0m", end=end)
     else:
         print(input_string)
 
@@ -287,7 +290,7 @@ if __name__ == "__main__":
                 "LOG: Your system will need to be rebuilt to apply this configuration.",
                 "orange",
             )
-            print_pretty("LOG: Would you like to rebuild now? [y/n]", "orange")
+            print_pretty("LOG: Would you like to rebuild now? [y/n]: ", "orange", False)
             user_input = input().lower()
 
             if user_input == "y":
