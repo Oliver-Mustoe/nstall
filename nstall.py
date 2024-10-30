@@ -232,10 +232,16 @@ def search_package_list(package_name, system_hash, to_glob):
 
 
 if __name__ == "__main__":
+
+    if os.getuid() != 0:
+        print_pretty("Usage ERROR: This script must be run as root.", "red")
+        sys.exit(1)
+
     if len(sys.argv) < 3:
         print_pretty(
             "Usage: sudo nstall <add/remove/search/match> <package_name>", "red"
         )
+        sys.exit(1)
     else:
         user_action = sys.argv[1].lower()
         target_package_name = sys.argv[2]
