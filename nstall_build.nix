@@ -2,7 +2,7 @@
 
 pkgs.python3Packages.buildPythonApplication rec {
     pname = "nstall";
-    version = "0.2.2";
+    version = "0.3";
     format = "other";
 
      propagatedBuildInputs = [
