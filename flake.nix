@@ -12,5 +12,6 @@
     in
     {
       packages.x86_64-linux.default = import ./nstall_build.nix { inherit pkgs; };
+      packages.x86_64-linux.nstall = import ./nstall_build.nix { inherit pkgs; };
     };
 }
