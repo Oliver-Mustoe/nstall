@@ -27,7 +27,6 @@ in
   };
 
   config = lib.mkIf cfg.enable rec {
-    toml2 = pkgs.lib.importTOML cfg.path;
-    environment.systemPackages = getPackages (builtins.attrNames toml2);
+    environment.systemPackages = getPackages (builtins.attrNames (pkgs.lib.importTOML cfg.path));
   };
 }
