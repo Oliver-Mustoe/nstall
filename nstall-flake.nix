@@ -7,14 +7,14 @@
 let
   cfg = config.services.nstall;
   getPackages =
-    toml:
+    toml3:
     pkgs.lib.flatten (
       map (
         channel:
         map (
           p: (import (builtins.findFile builtins.nixPath "${channel}") { config.allowUnfree = true; })."${p}"
-        ) toml.packages.${channel}.pks
-      ) toml.packages
+        ) toml3.packages.${channel}.pks
+      ) toml3.packages
     );
 in
 {
@@ -27,7 +27,7 @@ in
   };
 
   config = lib.mkIf cfg.enable rec {
-    toml = pkgs.lib.importTOML cfg.path;
-    environment.systemPackages = getPackages (builtins.attrNames toml);
+    toml2 = pkgs.lib.importTOML cfg.path;
+    environment.systemPackages = getPackages (builtins.attrNames toml2);
   };
 }
